@@ -1,0 +1,25 @@
+{
+  "name": "outlook-followup",
+  "version": "1.0.0",
+  "description": "Outlook for Mac add-in: track sent emails and draft numbered follow-ups until someone replies",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test test/*.test.mjs",
+    "serve": "npx --yes http-server dist -S -C ~/.office-addin-dev-certs/localhost.crt -K ~/.office-addin-dev-certs/localhost.key -p 3000"
+  },
+  "keywords": [
+    "outlook",
+    "office-addin",
+    "follow-up"
+  ],
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@azure/msal-browser": "^5.29.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  },
+  "private": true,
+  "type": "module"
+}

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Follow-Up Tracker</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header><h1>Follow-Up Tracker</h1></header>
+
+  <section id="current" class="card" hidden>
+    <h2>This email</h2>
+    <p id="currentSubject" class="subject"></p>
+    <div id="currentUntracked">
+      <label>Follow up after
+        <select id="trackDays">
+          <option value="3">3 business days</option>
+          <option value="4">4 business days</option>
+          <option value="5">5 business days</option>
+        </select>
+      </label>
+      <button id="trackBtn" class="primary">Track this email</button>
+    </div>
+    <div id="currentTracked" hidden>
+      <p class="muted">Tracked (has the “Follow-up” category).</p>
+      <button id="untrackBtn">Stop tracking</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <button id="checkBtn" class="primary wide">Check follow-ups now</button>
+    <p id="status" class="muted" role="status"></p>
+  </section>
+
+  <section id="results"></section>
+
+  <details class="card">
+    <summary>Settings</summary>
+    <label>Follow-up text <span class="muted">({n} = follow-up number)</span>
+      <textarea id="setTemplate" rows="5"></textarea>
+    </label>
+    <label>Holidays to skip <span class="muted">(YYYY-MM-DD, one per line)</span>
+      <textarea id="setHolidays" rows="4" placeholder="2026-12-31"></textarea>
+    </label>
+    <label>Interval when you add the “Follow-up” category by hand
+      <select id="setDefaultDays">
+        <option value="3">3 business days</option>
+        <option value="4">4 business days</option>
+        <option value="5">5 business days</option>
+      </select>
+    </label>
+    <button id="saveSettingsBtn">Save settings</button>
+    <p id="settingsStatus" class="muted"></p>
+  </details>
+
+  <script src="taskpane.js"></script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Follow-up</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header><h1>Follow-up</h1></header>
+  <section class="card">
+    <fieldset id="choice">
+      <legend>When this email is sent:</legend>
+      <label class="radio"><input type="radio" name="days" value="0" checked /> No follow-up</label>
+      <label class="radio"><input type="radio" name="days" value="3" /> Follow up after 3 business days</label>
+      <label class="radio"><input type="radio" name="days" value="4" /> Follow up after 4 business days</label>
+      <label class="radio"><input type="radio" name="days" value="5" /> Follow up after 5 business days</label>
+    </fieldset>
+    <p id="status" class="muted" role="status"></p>
+  </section>
+  <p class="muted pad small">
+    After sending, open <b>Follow-Up Tracker</b> on any email and press <b>Check follow-ups now</b>
+    to pick it up. Due follow-ups become drafts in your Drafts folder for you to review and send.
+  </p>
+  <script src="compose.js"></script>
+</body>
+</html>

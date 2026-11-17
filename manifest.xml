@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Add-in only (XML) manifest. Outlook on Mac does not support the unified JSON manifest.
+  Hosting base URL: https://alex-h-g.github.io/outlook-followup/  (change everywhere if you host elsewhere)
+  <Id> must stay equal to ADDIN_ID in src/lib/config.js.
+-->
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+           xmlns:mailappor="http://schemas.microsoft.com/office/mailappversionoverrides/1.0"
+           xsi:type="MailApp">
+  <Id>1eecab5a-ef46-49fc-98de-b06c0b6e3ca6</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>Alex H-G</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName DefaultValue="Follow-Up Tracker"/>
+  <Description DefaultValue="Track sent emails and draft numbered follow-ups when nobody replies."/>
+  <IconUrl DefaultValue="https://alex-h-g.github.io/outlook-followup/assets/icon-64.png"/>
+  <HighResolutionIconUrl DefaultValue="https://alex-h-g.github.io/outlook-followup/assets/icon-128.png"/>
+  <SupportUrl DefaultValue="https://github.com/alex-h-g/outlook-followup"/>
+  <AppDomains>
+    <AppDomain>https://alex-h-g.github.io</AppDomain>
+  </AppDomains>
+  <Hosts>
+    <Host Name="Mailbox"/>
+  </Hosts>
+  <Requirements>
+    <Sets>
+      <Set Name="Mailbox" MinVersion="1.8"/>
+    </Sets>
+  </Requirements>
+  <FormSettings>
+    <Form xsi:type="ItemRead">
+      <DesktopSettings>
+        <SourceLocation DefaultValue="https://alex-h-g.github.io/outlook-followup/taskpane.html"/>
+        <RequestedHeight>250</RequestedHeight>
+      </DesktopSettings>
+    </Form>
+  </FormSettings>
+  <Permissions>ReadWriteMailbox</Permissions>
+  <Rule xsi:type="RuleCollection" Mode="Or">
+    <Rule xsi:type="ItemIs" ItemType="Message" FormType="Read"/>
+    <Rule xsi:type="ItemIs" ItemType="Message" FormType="Edit"/>
+  </Rule>
+  <DisableEntityHighlighting>false</DisableEntityHighlighting>
+
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/mailappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <VersionOverrides xmlns="http://schemas.microsoft.com/office/mailappversionoverrides/1.1" xsi:type="VersionOverridesV1_1">
+      <Requirements>
+        <bt:Sets DefaultMinVersion="1.8">
+          <bt:Set Name="Mailbox"/>
+        </bt:Sets>
+      </Requirements>
+      <Hosts>
+        <Host xsi:type="MailHost">
+          <DesktopFormFactor>
+            <FunctionFile resid="CommandsUrl"/>
+
+            <!-- Reading an email: open the tracker (Track this / Check follow-ups now / Settings) -->
+            <ExtensionPoint xsi:type="MessageReadCommandSurface">
+              <OfficeTab id="TabDefault">
+                <Group id="fuReadGroup">
+                  <Label resid="GroupLabel"/>
+                  <Control xsi:type="Button" id="fuReadButton">
+                    <Label resid="ReadButtonLabel"/>
+                    <Supertip>
+                      <Title resid="ReadButtonLabel"/>
+                      <Description resid="ReadButtonTip"/>
+                    </Supertip>
+                    <Icon>
+                      <bt:Image size="16" resid="Icon16"/>
+                      <bt:Image size="32" resid="Icon32"/>
+                      <bt:Image size="80" resid="Icon80"/>
+                    </Icon>
+                    <Action xsi:type="ShowTaskpane">
+                      <SourceLocation resid="TaskpaneUrl"/>
+                      <SupportsPinning>true</SupportsPinning>
+                    </Action>
+                  </Control>
+                </Group>
+              </OfficeTab>
+            </ExtensionPoint>
+
+            <!-- Writing an email: choose No follow-up / 3 / 4 / 5 business days (off by default) -->
+            <ExtensionPoint xsi:type="MessageComposeCommandSurface">
+              <OfficeTab id="TabDefault">
+                <Group id="fuComposeGroup">
+                  <Label resid="GroupLabel"/>
+                  <Control xsi:type="Button" id="fuComposeButton">
+                    <Label resid="ComposeButtonLabel"/>
+                    <Supertip>
+                      <Title resid="ComposeButtonLabel"/>
+                      <Description resid="ComposeButtonTip"/>
+                    </Supertip>
+                    <Icon>
+                      <bt:Image size="16" resid="Icon16"/>
+                      <bt:Image size="32" resid="Icon32"/>
+                      <bt:Image size="80" resid="Icon80"/>
+                    </Icon>
+                    <Action xsi:type="ShowTaskpane">
+                      <SourceLocation resid="ComposeUrl"/>
+                    </Action>
+                  </Control>
+                </Group>
+              </OfficeTab>
+            </ExtensionPoint>
+          </DesktopFormFactor>
+        </Host>
+      </Hosts>
+      <Resources>
+        <bt:Images>
+          <bt:Image id="Icon16" DefaultValue="https://alex-h-g.github.io/outlook-followup/assets/icon-16.png"/>
+          <bt:Image id="Icon32" DefaultValue="https://alex-h-g.github.io/outlook-followup/assets/icon-32.png"/>
+          <bt:Image id="Icon80" DefaultValue="https://alex-h-g.github.io/outlook-followup/assets/icon-80.png"/>
+        </bt:Images>
+        <bt:Urls>
+          <bt:Url id="CommandsUrl" DefaultValue="https://alex-h-g.github.io/outlook-followup/commands.html"/>
+          <bt:Url id="TaskpaneUrl" DefaultValue="https://alex-h-g.github.io/outlook-followup/taskpane.html"/>
+          <bt:Url id="ComposeUrl" DefaultValue="https://alex-h-g.github.io/outlook-followup/compose.html"/>
+        </bt:Urls>
+        <bt:ShortStrings>
+          <bt:String id="GroupLabel" DefaultValue="Follow-Up"/>
+          <bt:String id="ReadButtonLabel" DefaultValue="Follow-ups"/>
+          <bt:String id="ComposeButtonLabel" DefaultValue="Follow-up"/>
+        </bt:ShortStrings>
+        <bt:LongStrings>
+          <bt:String id="ReadButtonTip" DefaultValue="Track this email, or check all tracked emails for replies and draft follow-ups."/>
+          <bt:String id="ComposeButtonTip" DefaultValue="Choose whether to follow up on this email if nobody replies."/>
+        </bt:LongStrings>
+      </Resources>
+    </VersionOverrides>
+  </VersionOverrides>
+</OfficeApp>
