@@ -1,4 +1,4 @@
-// Compose pane: No follow-up (default) / 3 / 4 / 5 business days.
+// Compose pane: No follow-up (default) / 1–7 business days.
 //
 // Own mailbox  → hidden marker saved on the draft (Office.js custom property).
 // Shared mailbox (e.g. env-doc@) → Outlook for Mac refuses to save that marker
@@ -83,7 +83,7 @@ async function choose(days) {
 }
 
 officeReady().then(async () => {
-  const radios = [...document.querySelectorAll('input[name="days"]')];
+  const select = $("days");
   mbx = await composeMailbox();
 
   // Show the current choice.
@@ -102,10 +102,10 @@ officeReady().then(async () => {
       watch();
     }
   }
-  radios.forEach((r) => (r.checked = Number(r.value) === days));
+  select.value = String(days);
   status(label(days) + (mbx !== "me" ? ` (${mbx})` : ""));
 
-  radios.forEach((r) =>
-    r.addEventListener("change", () => choose(Number(r.value)).catch((e) => status("Couldn't save: " + e.message, true)))
+  select.addEventListener("change", () =>
+    choose(Number(select.value)).catch((e) => status("Couldn't save: " + e.message, true))
   );
 });

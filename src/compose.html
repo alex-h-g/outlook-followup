@@ -12,10 +12,16 @@
   <section class="card">
     <fieldset id="choice">
       <legend>When this email is sent:</legend>
-      <label class="radio"><input type="radio" name="days" value="0" checked /> No follow-up</label>
-      <label class="radio"><input type="radio" name="days" value="3" /> Follow up after 3 business days</label>
-      <label class="radio"><input type="radio" name="days" value="4" /> Follow up after 4 business days</label>
-      <label class="radio"><input type="radio" name="days" value="5" /> Follow up after 5 business days</label>
+      <select id="days" aria-label="Follow-up">
+          <option value="0" selected>No follow-up</option>
+          <option value="1">Follow up after 1 business day</option>
+          <option value="2">Follow up after 2 business days</option>
+          <option value="3">Follow up after 3 business days</option>
+          <option value="4">Follow up after 4 business days</option>
+          <option value="5">Follow up after 5 business days</option>
+          <option value="6">Follow up after 6 business days</option>
+          <option value="7">Follow up after 7 business days</option>
+      </select>
     </fieldset>
     <p id="status" class="muted" role="status"></p>
   </section>

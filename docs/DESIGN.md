@@ -6,7 +6,7 @@ These are the decisions agreed with Alex on 17 Nov 2026, and the platform facts 
 
 - The only user is Alex, on two MacBooks running new Outlook for Mac with Microsoft 365 / Exchange Online. No IT involvement if it can be avoided.
 - Tracking starts from:
-  - a compose selector (No follow-up *(default)* / 3 / 4 / 5 business days), **and**
+  - a compose selector (No follow-up *(default)* / 1–7 business days), **and**
   - "Track this email" on an email that's already sent, **and**
   - adding the "Follow-up" category by hand.
 - Checks run only when Alex presses **Check follow-ups now**. There's no polling or timer.

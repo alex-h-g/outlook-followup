@@ -61,7 +61,7 @@ Most tenants let ordinary users register an app and consent for their own mailbo
 
 | Where | What |
 |---|---|
-| **Writing an email** → ribbon **Follow-up** | Choose *No follow-up* (default), *3*, *4* or *5 business days*. |
+| **Writing an email** → ribbon **Follow-up** | Choose *No follow-up* (default) or *1–7 business days*. |
 | **Reading a sent email** → ribbon **Follow-ups** → **Track this email** | Starts tracking an email you've already sent. |
 | **Any email** → **Follow-ups** → **Check follow-ups now** | Picks up newly sent marked emails. Checks the due ones for a reply, and creates **Follow Up #N** drafts in **Drafts** for those with none. |
 | Outlook category **"Follow-up"** | Shows which sent emails are tracked. Add it to a sent email by hand to start tracking (uses the default interval from Settings). Remove it to stop. |
