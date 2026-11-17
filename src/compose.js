@@ -1,4 +1,4 @@
-import { officeReady, getComposeDays, setComposeDays } from "./lib/office.js";
+import { officeReady, getComposeDays, setComposeDays, composeMailbox, rememberMailbox } from "./lib/office.js";
 
 const status = (t, err) => {
   const el = document.getElementById("status");
@@ -21,6 +21,11 @@ officeReady().then(async () => {
       try {
         status("Saving…");
         await setComposeDays(days);
+        // Sending from a shared mailbox (e.g. env-doc@)? Make sure "Check follow-ups" looks there too.
+        if (days) {
+          const mbx = await composeMailbox();
+          if (mbx !== "me") await rememberMailbox(mbx);
+        }
         status(days ? `Follow-up set: ${days} business days.` : "Follow-up is off for this email.");
       } catch (e) {
         status("Couldn't save: " + e.message, true);

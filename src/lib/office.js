@@ -12,8 +12,49 @@ function wrap(fn) {
 // ---- roaming settings (stored in your mailbox, shared by both Macs) ----
 
 export function getSettings() {
-  const s = Office.context.roamingSettings.get("settings") || {};
-  return { ...DEFAULT_SETTINGS, ...s };
+  const s = { ...DEFAULT_SETTINGS, ...(Office.context.roamingSettings.get("settings") || {}) };
+  if (typeof s.scanFrom !== "object" || !s.scanFrom) s.scanFrom = {}; // v1.0 stored a single string
+  s.mailboxes = [...new Set(["me", ...(s.mailboxes || [])].map((m) => (m === "me" ? m : m.toLowerCase())))];
+  return s;
+}
+
+/** Add a shared mailbox to the list checked by "Check follow-ups now". */
+export async function rememberMailbox(mbx) {
+  const s = getSettings();
+  if (s.mailboxes.includes(mbx)) return s;
+  s.mailboxes.push(mbx);
+  await saveSettings(s);
+  return s;
+}
+
+const ownAddress = () => (Office.context.mailbox.userProfile.emailAddress || "").toLowerCase();
+
+/**
+ * Mailbox of the email being read: "me", or the shared mailbox's address.
+ * Uses getSharedPropertiesAsync (fails for items in your own mailbox).
+ */
+export async function readModeMailbox() {
+  const item = Office.context.mailbox.item;
+  if (!item || typeof item.getSharedPropertiesAsync !== "function") return "me";
+  try {
+    const sp = await wrap((cb) => item.getSharedPropertiesAsync(cb));
+    const owner = (sp && sp.owner ? String(sp.owner) : "").toLowerCase();
+    return owner && owner !== ownAddress() ? owner : "me";
+  } catch {
+    return "me";
+  }
+}
+
+/** Mailbox an email is being composed from, based on its From address. */
+export async function composeMailbox() {
+  const item = Office.context.mailbox.item;
+  try {
+    const from = await wrap((cb) => item.from.getAsync(cb));
+    const addr = (from && from.emailAddress ? from.emailAddress : "").toLowerCase();
+    return addr && addr !== ownAddress() ? addr : "me";
+  } catch {
+    return "me";
+  }
 }
 
 export function saveSettings(s) {

@@ -24,7 +24,8 @@ export const STATE_PROP_ID = `String {${STATE_NS}} Name FollowUpState`;
 export const CATEGORY = "Follow-up";
 
 // Least-privilege delegated Graph scopes. No Mail.Send: you always send drafts yourself.
-export const SCOPES = ["User.Read", "Mail.ReadWrite"];
+// Mail.ReadWrite.Shared = shared mailboxes you already have Full Access to (nothing more).
+export const SCOPES = ["User.Read", "Mail.ReadWrite", "Mail.ReadWrite.Shared"];
 
 export const DEFAULT_SETTINGS = {
   template:
@@ -32,4 +33,6 @@ export const DEFAULT_SETTINGS = {
   holidays: [], // ["2026-12-31", ...] – YYYY-MM-DD, local dates
   defaultDays: 3, // used when you add the "Follow-up" category manually in Outlook
   scanDays: 30, // how far back the first scan of Sent Items looks
+  mailboxes: ["me"], // "me" + shared mailbox addresses; added automatically when you use the add-in there
+  scanFrom: {}, // per mailbox
 };

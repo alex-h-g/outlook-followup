@@ -1,31 +1,28 @@
-// Follow-up tracking against your own mailbox via Microsoft Graph.
+// Follow-up tracking via Microsoft Graph, in your own mailbox and in shared
+// mailboxes you have Full Access to (e.g. env-doc@gsk.com.sg).
 //
 // Source of truth lives on the sent email itself, so both Macs see the same state:
-//   • category "Follow-up"          → email is being tracked (remove it in Outlook to stop)
+//   • category "Follow-up"            → email is being tracked (remove it in Outlook to stop)
 //   • extended property FollowUpState → JSON {days, sent, nextDue, draftId, status}
 // Emails marked in compose carry an Office.js custom property (fuDays) that is
-// picked up from Sent Items on the next "Check follow-ups".
+// picked up from that mailbox's Sent Items on the next "Check follow-ups".
+//
+// A "mailbox" here is either "me" or the SMTP address of a shared mailbox.
 import { graph, graphAll, q } from "./graph.js";
 import { CATEGORY, CECP_PROP_ID, STATE_PROP_ID } from "./config.js";
-import {
-  toYMD,
-  newState,
-  parseState,
-  decide,
-  findResponse,
-  isBounce,
-  renderTemplate,
-} from "./logic.js";
+import { toYMD, newState, parseState, decide, findResponse, isBounce, renderTemplate } from "./logic.js";
 
 const MSG_FIELDS =
-  "id,subject,sentDateTime,conversationId,toRecipients,ccRecipients,from,isDraft,webLink,categories";
+  "id,subject,sentDateTime,conversationId,toRecipients,ccRecipients,from,sender,isDraft,webLink,categories";
 
+const root = (mbx) => (!mbx || mbx === "me" ? "/me" : `/users/${encodeURIComponent(mbx)}`);
 const expandProp = (id) => `$expand=singleValueExtendedProperties($filter=id eq '${q(id)}')`;
 const propValue = (msg, id) =>
   (msg.singleValueExtendedProperties || []).find((p) => p.id.toLowerCase() === id.toLowerCase())?.value;
 
 // ---------------------------------------------------------------- identity
 let meCache = null;
+/** Your own addresses. "Mine" for a check = these + the mailbox being checked. */
 export async function getMe() {
   if (meCache) return meCache;
   const me = await graph("GET", "/me?$select=displayName,mail,userPrincipalName,proxyAddresses");
@@ -38,54 +35,67 @@ export async function getMe() {
   return meCache;
 }
 
-const isMine = (me, msg) => me.addresses.has((msg.from?.emailAddress?.address || "").toLowerCase());
+// Shared mailboxes you work from. Messages from any of these (or from you) are
+// never counted as a response, and count as "sent by you" for tracking.
+let knownMailboxes = [];
+export function setKnownMailboxes(list) {
+  knownMailboxes = (list || []).filter((m) => m && m !== "me").map((m) => m.toLowerCase());
+}
+
+function ownAddresses(me, mbx) {
+  const s = new Set([...me.addresses, ...knownMailboxes]);
+  if (mbx && mbx !== "me") s.add(mbx.toLowerCase());
+  return s;
+}
+
+const fromAddr = (m) => (m.from?.emailAddress?.address || "").toLowerCase();
+const isOwn = (own, m) => own.has(fromAddr(m)) || own.has((m.sender?.emailAddress?.address || "").toLowerCase());
 
 // ---------------------------------------------------------------- state writes
-async function writeState(msg, state, { tracked }) {
+async function writeState(mbx, msg, state, { tracked }) {
   const cats = new Set(msg.categories || []);
   if (tracked) cats.add(CATEGORY);
   else cats.delete(CATEGORY);
-  await graph("PATCH", `/me/messages/${msg.id}`, {
+  await graph("PATCH", `${root(mbx)}/messages/${msg.id}`, {
     categories: [...cats],
     singleValueExtendedProperties: [{ id: STATE_PROP_ID, value: JSON.stringify(state) }],
   });
 }
 
-export async function startTracking(msg, days, holidays) {
+export async function startTracking(mbx, msg, days, holidays) {
   const state = newState(days, msg.sentDateTime, holidays);
-  await writeState(msg, state, { tracked: true });
+  await writeState(mbx, msg, state, { tracked: true });
   return state;
 }
 
-export async function stopTracking(msgId, status = "cancelled") {
-  const msg = await graph("GET", `/me/messages/${msgId}?$select=id,categories&${expandProp(STATE_PROP_ID)}`);
+export async function stopTracking(mbx, msgId, status = "cancelled") {
+  const msg = await graph("GET", `${root(mbx)}/messages/${msgId}?$select=id,categories&${expandProp(STATE_PROP_ID)}`);
   const state = parseState(propValue(msg, STATE_PROP_ID)) || { v: 1 };
-  await writeState(msg, { ...state, status }, { tracked: false });
+  await writeState(mbx, msg, { ...state, status }, { tracked: false });
 }
 
 // ---------------------------------------------------------------- read-mode "Track this"
-export async function findSentCopy(internetMessageId) {
-  const me = await getMe();
+export async function findSentCopy(mbx, internetMessageId) {
+  const own = ownAddresses(await getMe(), mbx);
   const hits = await graphAll(
-    `/me/messages?$filter=internetMessageId eq '${q(internetMessageId)}'&$select=${MSG_FIELDS}&${expandProp(
+    `${root(mbx)}/messages?$filter=internetMessageId eq '${q(internetMessageId)}'&$select=${MSG_FIELDS}&${expandProp(
       STATE_PROP_ID
     )}`,
     10
   );
-  return hits.find((m) => !m.isDraft && isMine(me, m)) || null;
+  return hits.find((m) => !m.isDraft && isOwn(own, m)) || null;
 }
 
-export async function trackSentEmail(internetMessageId, days, holidays) {
-  const msg = await findSentCopy(internetMessageId);
-  if (!msg) throw new Error("Only emails you have sent can be tracked. Open it from Sent Items and try again.");
-  return startTracking(msg, days, holidays);
+export async function trackSentEmail(mbx, internetMessageId, days, holidays) {
+  const msg = await findSentCopy(mbx, internetMessageId);
+  if (!msg) throw new Error("Only emails sent from this mailbox can be tracked. Open it from Sent Items and try again.");
+  return startTracking(mbx, msg, days, holidays);
 }
 
 // ---------------------------------------------------------------- discovery of compose-marked emails
-async function discoverComposeMarked(settings, holidays) {
-  const since = settings.scanFrom || new Date(Date.now() - settings.scanDays * 864e5).toISOString();
+async function discoverComposeMarked(mbx, since, holidays) {
   const path =
-    `/me/mailFolders/sentitems/messages?$filter=sentDateTime ge ${since}` +
+    `${root(mbx)}/mailFolders/sentitems/messages?$filter=sentDateTime ge ${since}` +
     `&$select=${MSG_FIELDS}&${expandProp(CECP_PROP_ID)}&$top=100`;
   const sent = await graphAll(path, 2000);
   let found = 0;
@@ -100,17 +110,15 @@ async function discoverComposeMarked(settings, holidays) {
     }
     const days = Number(props.fuDays);
     if (!days || props.fuPromoted) continue;
-    await startTracking(m, days, holidays);
+    await startTracking(mbx, m, days, holidays);
     // Mark as picked up so a later scan doesn't restart tracking after a reply.
     const { fuDays, ...rest } = props;
-    await graph("PATCH", `/me/messages/${m.id}`, {
+    await graph("PATCH", `${root(mbx)}/messages/${m.id}`, {
       singleValueExtendedProperties: [{ id: CECP_PROP_ID, value: JSON.stringify({ ...rest, fuPromoted: "1" }) }],
     });
     found++;
   }
-  // Overlap by 2 days so late-arriving Sent Items aren't missed. Roams to the other Mac.
-  const scanFrom = new Date(Date.now() - 2 * 864e5).toISOString();
-  return { found, scanFrom };
+  return found;
 }
 
 // ---------------------------------------------------------------- follow-up draft
@@ -118,18 +126,19 @@ function escapeHtml(s) {
   return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 }
 
-async function createFollowUpDraft(original, number, template, me) {
-  const notMe = (r) => !me.addresses.has((r.emailAddress?.address || "").toLowerCase());
-  let to = (original.toRecipients || []).filter(notMe);
-  let cc = (original.ccRecipients || []).filter(notMe);
+async function createFollowUpDraft(mbx, original, number, template, own) {
+  const notOwn = (r) => !own.has((r.emailAddress?.address || "").toLowerCase());
+  let to = (original.toRecipients || []).filter(notOwn);
+  let cc = (original.ccRecipients || []).filter(notOwn);
   if (!to.length && cc.length) [to, cc] = [cc, []];
 
   // Forward (not reply) so the original attachments come along. Stays in the same conversation.
-  const draft = await graph("POST", `/me/messages/${original.id}/createForward`, {
+  // Created in the same mailbox, so it is sent from that mailbox (e.g. env-doc@).
+  const draft = await graph("POST", `${root(mbx)}/messages/${original.id}/createForward`, {
     message: { toRecipients: to, ccRecipients: cc },
   });
 
-  const full = await graph("GET", `/me/messages/${draft.id}?$select=body`);
+  const full = await graph("GET", `${root(mbx)}/messages/${draft.id}?$select=body,webLink`);
   const intro =
     `<div style="font-family:Aptos,Calibri,Helvetica,Arial,sans-serif;font-size:11pt">` +
     escapeHtml(renderTemplate(template, number)).replace(/\n/g, "<br>") +
@@ -138,31 +147,28 @@ async function createFollowUpDraft(original, number, template, me) {
   html = /<body[^>]*>/i.test(html) ? html.replace(/<body[^>]*>/i, (m) => m + intro) : intro + html;
 
   // Clear categories so the sent follow-up itself is never treated as a new tracked email.
-  await graph("PATCH", `/me/messages/${draft.id}`, {
+  await graph("PATCH", `${root(mbx)}/messages/${draft.id}`, {
     body: { contentType: "html", content: html },
     categories: [],
   });
-  return draft;
+  return { id: draft.id, webLink: full.webLink || draft.webLink };
 }
 
 // ---------------------------------------------------------------- the check
-/**
- * Runs on demand only ("Check follow-ups now"). For each tracked email:
- *  - not yet due            → no mailbox query at all
- *  - due, response found    → tracking stops, category removed
- *  - due, no response       → Follow Up #N draft created in the same conversation
- *  - draft already waiting  → reminds you to send it
- */
-export async function checkAll(settings, holidays, onProgress = () => {}) {
-  const me = await getMe();
+async function checkMailbox(mbx, settings, holidays, me, onProgress) {
   const today = toYMD(new Date());
+  const own = ownAddresses(me, mbx);
+  const label = mbx === "me" ? "your mailbox" : mbx;
 
-  onProgress("Looking for newly sent emails marked for follow-up…");
-  const discovery = await discoverComposeMarked(settings, holidays);
+  onProgress(`${label}: looking for newly sent emails marked for follow-up…`);
+  const since =
+    (settings.scanFrom && settings.scanFrom[mbx]) ||
+    new Date(Date.now() - settings.scanDays * 864e5).toISOString();
+  const discovered = await discoverComposeMarked(mbx, since, holidays);
 
-  onProgress("Loading tracked emails…");
+  onProgress(`${label}: loading tracked emails…`);
   const tracked = await graphAll(
-    `/me/messages?$filter=categories/any(c:c eq '${q(CATEGORY)}')&$select=${MSG_FIELDS}&${expandProp(
+    `${root(mbx)}/messages?$filter=categories/any(c:c eq '${q(CATEGORY)}')&$select=${MSG_FIELDS}&${expandProp(
       STATE_PROP_ID
     )}&$top=100`,
     500
@@ -173,25 +179,28 @@ export async function checkAll(settings, holidays, onProgress = () => {}) {
   for (const msg of tracked) {
     i++;
     if (msg.isDraft) continue;
-    onProgress(`Checking ${i} of ${tracked.length}…`);
-    const base = { id: msg.id, subject: msg.subject, to: msg.toRecipients, webLink: msg.webLink };
+    onProgress(`${label}: checking ${i} of ${tracked.length}…`);
+    const base = { mbx, id: msg.id, subject: msg.subject, to: msg.toRecipients, webLink: msg.webLink };
     try {
-      if (!isMine(me, msg)) {
-        results.push({ ...base, kind: "ignored", note: "Not sent by you – remove the Follow-up category." });
+      if (!isOwn(own, msg)) {
+        results.push({ ...base, kind: "ignored", note: "Not sent from this mailbox – remove the Follow-up category." });
         continue;
       }
       let state = parseState(propValue(msg, STATE_PROP_ID));
       // Category added by hand in Outlook, or re-added after a reply/cancel → (re)start.
       if (!state || state.status !== "active") {
         const startFrom = state ? new Date().toISOString() : msg.sentDateTime;
-        state = await startTracking({ ...msg, sentDateTime: startFrom }, state?.days || settings.defaultDays, holidays);
+        state = await startTracking(mbx, { ...msg, sentDateTime: startFrom }, state?.days || settings.defaultDays, holidays);
       }
 
       const ctx = {};
       if (state.draftId) {
-        const d = await graph("GET", `/me/messages/${state.draftId}?$select=id,isDraft,sentDateTime,webLink`, undefined, {
-          allow404: true,
-        });
+        const d = await graph(
+          "GET",
+          `${root(mbx)}/messages/${state.draftId}?$select=id,isDraft,sentDateTime,webLink`,
+          undefined,
+          { allow404: true }
+        );
         ctx.draft = d ? { exists: true, isDraft: d.isDraft, sentDateTime: d.sentDateTime, webLink: d.webLink } : { exists: false };
       }
 
@@ -202,38 +211,64 @@ export async function checkAll(settings, holidays, onProgress = () => {}) {
       }
 
       const conv = await graphAll(
-        `/me/messages?$filter=conversationId eq '${q(msg.conversationId)}'` +
+        `${root(mbx)}/messages?$filter=conversationId eq '${q(msg.conversationId)}'` +
           `&$select=id,from,subject,receivedDateTime,sentDateTime,isDraft&$top=50`,
         300
       );
-      const response = findResponse(conv, msg.sentDateTime, me.addresses);
+      const response = findResponse(conv, msg.sentDateTime, own);
       ctx.responded = !!response;
       const bounced = conv.some((m) => isBounce(m) && new Date(m.receivedDateTime) > new Date(msg.sentDateTime));
 
       const r = decide(state, ctx, today, holidays);
       if (r.action === "stop") {
-        await writeState(msg, r.state, { tracked: false });
+        await writeState(mbx, msg, r.state, { tracked: false });
         results.push({ ...base, kind: "replied", by: response?.from?.emailAddress?.name || response?.from?.emailAddress?.address });
       } else if (r.action === "waitDraft") {
         results.push({ ...base, kind: "draftWaiting", state, draftId: state.draftId, draftLink: ctx.draft?.webLink, bounced });
       } else if (r.action === "createDraft") {
-        const draft = await createFollowUpDraft(msg, r.number, settings.template, me);
+        const draft = await createFollowUpDraft(mbx, msg, r.number, settings.template, own);
         const next = { ...r.state, draftId: draft.id };
-        await writeState(msg, next, { tracked: true });
+        await writeState(mbx, msg, next, { tracked: true });
         results.push({ ...base, kind: "draftCreated", number: r.number, state: next, draftId: draft.id, draftLink: draft.webLink, bounced });
       } else {
-        await writeState(msg, r.state, { tracked: true });
+        await writeState(mbx, msg, r.state, { tracked: true });
         results.push({ ...base, kind: "waiting", state: r.state });
       }
     } catch (e) {
       results.push({ ...base, kind: "error", note: e.message });
     }
   }
-  return { results, discovered: discovery.found, scanFrom: discovery.scanFrom };
+  return { results, discovered };
 }
 
-/** Plain REST id (non-immutable) for opening an item with Office.js. */
-export async function restIdFor(immutableId) {
-  const m = await graph("GET", `/me/messages/${immutableId}?$select=id,webLink`, undefined, { immutable: false });
-  return m;
+/**
+ * Runs on demand only ("Check follow-ups now"), across every mailbox in settings.mailboxes.
+ *  - not yet due            → no mailbox query at all
+ *  - due, response found    → tracking stops, category removed
+ *  - due, no response       → Follow Up #N draft created in that mailbox, same conversation
+ *  - draft already waiting  → reminds you to send it
+ */
+export async function checkAll(settings, holidays, onProgress = () => {}) {
+  setKnownMailboxes(settings.mailboxes);
+  const me = await getMe();
+  const all = [];
+  let discovered = 0;
+  const scanFrom = { ...(typeof settings.scanFrom === "object" ? settings.scanFrom : {}) };
+  for (const mbx of settings.mailboxes) {
+    try {
+      const r = await checkMailbox(mbx, settings, holidays, me, onProgress);
+      all.push(...r.results);
+      discovered += r.discovered;
+      // Overlap by 2 days so late-arriving Sent Items aren't missed. Roams to the other Mac.
+      scanFrom[mbx] = new Date(Date.now() - 2 * 864e5).toISOString();
+    } catch (e) {
+      all.push({ mbx, subject: mbx === "me" ? "Your mailbox" : mbx, kind: "error", note: e.message });
+    }
+  }
+  return { results: all, discovered, scanFrom };
+}
+
+/** Plain REST id + webLink for opening an item with Office.js. */
+export async function restIdFor(mbx, immutableId) {
+  return graph("GET", `${root(mbx)}/messages/${immutableId}?$select=id,webLink`, undefined, { immutable: false });
 }

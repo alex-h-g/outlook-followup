@@ -1,10 +1,20 @@
-import { officeReady, getSettings, saveSettings, ensureMasterCategory, currentItemCategories, openItem } from "./lib/office.js";
-import { checkAll, trackSentEmail, findSentCopy, stopTracking, restIdFor } from "./lib/tracker.js";
+import {
+  officeReady,
+  getSettings,
+  saveSettings,
+  rememberMailbox,
+  readModeMailbox,
+  ensureMasterCategory,
+  currentItemCategories,
+  openItem,
+} from "./lib/office.js";
+import { checkAll, trackSentEmail, findSentCopy, stopTracking, restIdFor, setKnownMailboxes } from "./lib/tracker.js";
 import { parseHolidays } from "./lib/logic.js";
 import { CATEGORY } from "./lib/config.js";
 
 const $ = (id) => document.getElementById(id);
 let settings;
+let currentMbx = "me";
 
 function setStatus(text, isError = false) {
   $("status").textContent = text;
@@ -18,6 +28,7 @@ function fmtDate(ymd) {
 }
 
 const names = (rs) => (rs || []).map((r) => r.emailAddress?.name || r.emailAddress?.address).join(", ");
+const mbxLabel = (m) => (m === "me" ? "Your mailbox" : m);
 
 // ---------------------------------------------------------------- current email card
 async function refreshCurrent() {
@@ -28,6 +39,8 @@ async function refreshCurrent() {
   }
   $("current").hidden = false;
   $("currentSubject").textContent = item.subject || "(no subject)";
+  currentMbx = await readModeMailbox();
+  $("currentMailbox").textContent = mbxLabel(currentMbx);
   const tracked = (await currentItemCategories()).includes(CATEGORY);
   $("currentTracked").hidden = !tracked;
   $("currentUntracked").hidden = tracked;
@@ -38,11 +51,14 @@ async function onTrack() {
   $("trackBtn").disabled = true;
   try {
     setStatus("Tracking…");
-    await ensureMasterCategory(CATEGORY);
-    const state = await trackSentEmail(item.internetMessageId, Number($("trackDays").value), settings.holidays);
+    if (currentMbx === "me") await ensureMasterCategory(CATEGORY);
+    else settings = await rememberMailbox(currentMbx);
+    setKnownMailboxes(settings.mailboxes);
+    const state = await trackSentEmail(currentMbx, item.internetMessageId, Number($("trackDays").value), settings.holidays);
     setStatus(`Tracking. First follow-up due ${fmtDate(state.nextDue)}.`);
     $("currentTracked").hidden = false;
     $("currentUntracked").hidden = true;
+    loadSettingsForm();
   } catch (e) {
     setStatus(e.message, true);
   } finally {
@@ -53,9 +69,10 @@ async function onTrack() {
 async function onUntrack() {
   try {
     setStatus("Stopping…");
-    const msg = await findSentCopy(Office.context.mailbox.item.internetMessageId);
-    if (!msg) throw new Error("Couldn't find your sent copy of this email.");
-    await stopTracking(msg.id);
+    setKnownMailboxes(settings.mailboxes);
+    const msg = await findSentCopy(currentMbx, Office.context.mailbox.item.internetMessageId);
+    if (!msg) throw new Error("Couldn't find the sent copy of this email.");
+    await stopTracking(currentMbx, msg.id);
     setStatus("Tracking stopped.");
     $("currentTracked").hidden = true;
     $("currentUntracked").hidden = false;
@@ -74,6 +91,7 @@ function renderResults(results) {
     box.innerHTML = `<p class="muted pad">No tracked emails.</p>`;
     return;
   }
+  const multi = settings.mailboxes.length > 1;
   results.sort((a, b) => ORDER[a.kind] - ORDER[b.kind]);
   for (const r of results) {
     const el = document.createElement("div");
@@ -93,15 +111,15 @@ function renderResults(results) {
       ${r.bounced ? `<div class="error small">A delivery failure was received in this thread.</div>` : ""}
       <div class="actions"></div>`;
     el.querySelector(".subject").textContent = r.subject || "(no subject)";
-    el.querySelector(".to").textContent = names(r.to);
+    el.querySelector(".to").textContent = (multi ? mbxLabel(r.mbx) + " → " : "") + names(r.to);
     el.querySelector(".line").textContent = line;
     const actions = el.querySelector(".actions");
-    if (r.draftId) actions.append(button("Open draft", () => openDraft(r.draftId, r.draftLink)));
-    if (["waiting", "draftCreated", "draftWaiting", "error"].includes(r.kind)) {
+    if (r.draftId) actions.append(button("Open draft", () => openDraft(r.mbx, r.draftId, r.draftLink)));
+    if (r.id && ["waiting", "draftCreated", "draftWaiting", "error"].includes(r.kind)) {
       actions.append(
         button("Stop tracking", async (b) => {
           b.disabled = true;
-          await stopTracking(r.id);
+          await stopTracking(r.mbx, r.id);
           el.querySelector(".line").textContent = "Tracking stopped.";
           actions.innerHTML = "";
         })
@@ -114,12 +132,12 @@ function renderResults(results) {
 function button(label, fn) {
   const b = document.createElement("button");
   b.textContent = label;
-  b.onclick = () => fn(b).catch?.((e) => setStatus(e.message, true));
+  b.onclick = () => Promise.resolve(fn(b)).catch((e) => setStatus(e.message, true));
   return b;
 }
 
-async function openDraft(immutableId, webLink) {
-  const m = await restIdFor(immutableId);
+async function openDraft(mbx, immutableId, webLink) {
+  const m = await restIdFor(mbx, immutableId);
   openItem(m.id, m.webLink || webLink);
 }
 
@@ -127,6 +145,7 @@ async function onCheck() {
   $("checkBtn").disabled = true;
   try {
     await ensureMasterCategory(CATEGORY);
+    settings = getSettings();
     const { results, discovered, scanFrom } = await checkAll(settings, settings.holidays, setStatus);
     settings.scanFrom = scanFrom;
     await saveSettings(settings);
@@ -148,12 +167,18 @@ function loadSettingsForm() {
   $("setTemplate").value = settings.template;
   $("setHolidays").value = (settings.holidays || []).join("\n");
   $("setDefaultDays").value = String(settings.defaultDays);
+  $("setMailboxes").value = settings.mailboxes.filter((m) => m !== "me").join("\n");
 }
 
 async function onSaveSettings() {
   settings.template = $("setTemplate").value.trim() || settings.template;
   settings.holidays = parseHolidays($("setHolidays").value);
   settings.defaultDays = Number($("setDefaultDays").value);
+  const shared = $("setMailboxes")
+    .value.split(/[\s,;]+/)
+    .map((m) => m.trim().toLowerCase())
+    .filter((m) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(m));
+  settings.mailboxes = ["me", ...new Set(shared)];
   try {
     await saveSettings(settings);
     $("settingsStatus").textContent = "Saved (applies on both Macs).";

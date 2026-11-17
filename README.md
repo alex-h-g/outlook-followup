@@ -4,6 +4,7 @@ This is a small personal Outlook add-in. You mark emails you send for follow-up.
 
 - **No server or database, and IT doesn't install anything.** The static files are served from GitHub Pages. All tracking state is stored on your own sent emails in your mailbox.
 - **Uses Microsoft Graph for your mailbox only.** It asks for delegated `Mail.ReadWrite` and `User.Read`. It never sends email on its own, so it doesn't need `Mail.Send`.
+- **Works in shared mailboxes too**, for example `env-doc@gsk.com.sg`, as long as you have Full Access. Follow-up drafts are created in that mailbox, so they go out from it.
 - **Works on both Macs.** Both Macs see the same state, because the state lives in the mailbox.
 
 See [`docs/DESIGN.md`](docs/DESIGN.md) for the platform research, design decisions and open test items.
@@ -29,7 +30,7 @@ Most tenants let ordinary users register an app and consent for their own mailbo
    - **Redirect URI:** platform **Single-page application (SPA)**, URI `brk-multihub://alex-h-g.github.io`
    - Click **Register**.
 2. On the app's **Overview** page, copy the **Application (client) ID** and the **Directory (tenant) ID** into `src/lib/config.js`. Then commit and push.
-3. Open **API permissions → Add a permission → Microsoft Graph → Delegated** and add **Mail.ReadWrite**. **User.Read** is already listed.
+3. Open **API permissions → Add a permission → Microsoft Graph → Delegated** and add **Mail.ReadWrite** and **Mail.ReadWrite.Shared**. **User.Read** is already listed. `.Shared` only reaches shared mailboxes you already have Full Access to, such as `env-doc@gsk.com.sg`.
 4. You don't need to press "Grant admin consent". The first time you use **Check follow-ups now**, Microsoft shows a consent prompt for your own account.
 
 **If "New registration" is blocked**, or the first run says **"Need admin approval"**, your tenant doesn't allow self-service. Send IT this:
@@ -52,7 +53,7 @@ Most tenants let ordinary users register an app and consent for their own mailbo
 | **Reading a sent email** → ribbon **Follow-ups** → **Track this email** | Starts tracking an email you've already sent. |
 | **Any email** → **Follow-ups** → **Check follow-ups now** | Picks up newly sent marked emails. Checks the due ones for a reply, and creates **Follow Up #N** drafts in **Drafts** for those with none. |
 | Outlook category **"Follow-up"** | Shows which sent emails are tracked. Add it to a sent email by hand to start tracking (uses the default interval from Settings). Remove it to stop. |
-| **Settings** (inside the pane) | Follow-up text (`{n}` = number), holidays to skip, default interval. Saved in your mailbox, so both Macs share them. |
+| **Settings** (inside the pane) | Follow-up text (`{n}` = number), holidays to skip, default interval, shared mailboxes to check. A shared mailbox is added automatically the first time you mark or track an email in it. Saved in your mailbox, so both Macs share them. |
 
 **How a cycle works**
 1. You send an email marked for 3 business days.

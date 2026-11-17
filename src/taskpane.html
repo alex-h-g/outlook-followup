@@ -13,6 +13,7 @@
   <section id="current" class="card" hidden>
     <h2>This email</h2>
     <p id="currentSubject" class="subject"></p>
+    <p id="currentMailbox" class="muted small"></p>
     <div id="currentUntracked">
       <label>Follow up after
         <select id="trackDays">
@@ -43,6 +44,9 @@
     </label>
     <label>Holidays to skip <span class="muted">(YYYY-MM-DD, one per line)</span>
       <textarea id="setHolidays" rows="4" placeholder="2026-12-31"></textarea>
+    </label>
+    <label>Shared mailboxes to check <span class="muted">(one address per line; your own mailbox is always checked)</span>
+      <textarea id="setMailboxes" rows="3" placeholder="env-doc@gsk.com.sg"></textarea>
     </label>
     <label>Interval when you add the “Follow-up” category by hand
       <select id="setDefaultDays">

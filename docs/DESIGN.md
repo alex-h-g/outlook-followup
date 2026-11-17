@@ -36,6 +36,15 @@ These are the decisions agreed with Alex on 17 Nov 2026, and the platform facts 
 | Categories in compose | Not supported in Outlook on the web or new Outlook for Windows. Risky on new Mac, which shares that code. | Compose uses **custom properties** instead. These are documented to persist to the Sent Items copy. |
 | Hosting | Add-ins need an HTTPS URL. Event-based add-ins also need internet. | GitHub Pages, static files only. |
 
+## Shared mailboxes (added v1.1)
+
+- Alex works mainly from the shared mailbox `env-doc@gsk.com.sg` (Full Access via alex@gsk.com.sg), in tenant gsk.com.sg.
+- The manifest declares `<SupportsSharedFolders>true</SupportsSharedFolders>`. Without it, Outlook greys the add-in out in shared mailboxes.
+- Graph scope `Mail.ReadWrite.Shared`. Calls go to `/users/{shared-address}/…` instead of `/me/…`.
+- The mailbox is detected with `getSharedPropertiesAsync` in read mode, and from the From address in compose. It's then remembered in `settings.mailboxes`.
+- Addresses of your own and of your shared mailboxes are never counted as a response.
+- A category added by Graph in a shared mailbox has no colour unless "Follow-up" already exists in that mailbox's category list.
+
 ## Architecture
 
 ```

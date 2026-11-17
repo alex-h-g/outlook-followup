@@ -10,7 +10,7 @@
            xmlns:mailappor="http://schemas.microsoft.com/office/mailappversionoverrides/1.0"
            xsi:type="MailApp">
   <Id>1eecab5a-ef46-49fc-98de-b06c0b6e3ca6</Id>
-  <Version>1.0.0.0</Version>
+  <Version>1.1.0.0</Version>
   <ProviderName>Alex H-G</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Follow-Up Tracker"/>
@@ -54,6 +54,8 @@
       <Hosts>
         <Host xsi:type="MailHost">
           <DesktopFormFactor>
+            <!-- Lets the add-in run in shared mailboxes / shared folders (e.g. env-doc@gsk.com.sg) -->
+            <SupportsSharedFolders>true</SupportsSharedFolders>
             <FunctionFile resid="CommandsUrl"/>
 
             <!-- Reading an email: open the tracker (Track this / Check follow-ups now / Settings) -->
