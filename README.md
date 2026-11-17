@@ -27,8 +27,9 @@ The same add-in works for several Microsoft 365 organisations. Do this once for 
 | Organisation | Domain | Status |
 |---|---|---|
 | GSK Electronics | gsk.com.sg | Registered, admin consent granted, assignment restricted to alex@ |
-| SILQ Law | – | To do |
-| FOSR Law | – | To do |
+| SILQ Law | silqlaw.com | Registered |
+| FOSR Law | fosrlaw.com | Registered |
+| Hayden-Gilbert | hayden-gilbert.com | Registered |
 
 If you are the tenant admin, click **Grant admin consent for <org>** on the API permissions page after step 3, and you're done.
 

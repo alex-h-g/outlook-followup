@@ -11,8 +11,24 @@ export const TENANTS = [
     clientId: "3ac91786-9334-41aa-a056-a741343b95a4",
     tenantId: "26e19ffc-5943-419e-b59f-d00d4fda6259",
   },
-  // { name: "SILQ Law", domains: ["silqlaw.com"], clientId: "…", tenantId: "…" },
-  // { name: "FOSR Law", domains: ["fosrlaw.com"], clientId: "…", tenantId: "…" },
+  {
+    name: "SILQ Law",
+    domains: ["silqlaw.com"],
+    clientId: "9ca15ed4-1e21-40aa-90c5-117368a80de9",
+    tenantId: "322c38bc-a7e3-4336-a614-574780ae56a4",
+  },
+  {
+    name: "FOSR Law",
+    domains: ["fosrlaw.com"],
+    clientId: "49d0a3a9-3e19-43d4-a24a-6405960aac35",
+    tenantId: "af62a6e3-2d22-4a83-89f4-a08ab66aca74",
+  },
+  {
+    name: "Hayden-Gilbert",
+    domains: ["hayden-gilbert.com"],
+    clientId: "2f5999df-b36b-479d-b6ac-39214f817dca",
+    tenantId: "ebe589f4-4f52-400e-af00-4bbb77fd21d5",
+  },
 ];
 
 // ---------------------------------------------------------------------------
