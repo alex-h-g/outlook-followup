@@ -96,3 +96,27 @@ test("template + holiday parsing", () => {
   assert.deepEqual(parseHolidays("2026-12-31\n bad \n2027-01-01, 2027-02-02"), ["2026-12-31", "2027-01-01", "2027-02-02"]);
   assert.equal(toYMD(new Date(2026, 0, 5)), "2026-01-05");
 });
+
+import { matchPending, normSubject, prunePending } from "../src/lib/logic.js";
+
+test("pending marks match the right sent email", () => {
+  const sent = [
+    { id: "a", sentDateTime: "2026-11-17T04:00:00Z", subject: "Quote request", toRecipients: [{ emailAddress: { address: "x@y.com" } }], conversationId: "c1" },
+    { id: "b", sentDateTime: "2026-11-17T04:05:00Z", subject: "RE: Permit docs", toRecipients: [{ emailAddress: { address: "p@q.com" } }], conversationId: "c2" },
+    { id: "c", sentDateTime: "2026-11-17T05:00:00Z", subject: "Quote request", toRecipients: [{ emailAddress: { address: "z@y.com" } }], conversationId: "c3" },
+  ];
+  const pending = [
+    { k: "1", at: "2026-11-17T03:58:00Z", subject: "Quote request", to: ["x@y.com"] },
+    { k: "2", at: "2026-11-17T04:01:00Z", subject: "Permit docs", to: [], conv: "c2" },
+    { k: "3", at: "2026-11-17T04:30:00Z", subject: "", to: ["z@y.com"] },
+    { k: "4", at: "2026-11-17T06:00:00Z", subject: "Quote request", to: [] }, // nothing sent after
+  ];
+  const m = matchPending(pending, sent);
+  assert.equal(m.get("1").id, "a");
+  assert.equal(m.get("2").id, "b");
+  assert.equal(m.get("3").id, "c");
+  assert.equal(m.has("4"), false);
+  assert.equal(matchPending(pending, sent, new Set(["a"])).get("1")?.id, "c", "already-tracked mails are skipped");
+  assert.equal(normSubject("RE: FW: Hello "), "hello");
+  assert.equal(prunePending([{ at: "2026-01-01T00:00:00Z" }, { at: new Date().toISOString() }]).length, 1);
+});

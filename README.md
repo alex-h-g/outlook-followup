@@ -20,7 +20,19 @@ See [`docs/DESIGN.md`](docs/DESIGN.md) for the platform research, design decisio
 
 To host somewhere else, replace `https://alex-h-g.github.io/outlook-followup` in `manifest.xml`, and the redirect URI in step 2 below.
 
-## 2. One-time: register the app in Entra ID (try this yourself first)
+## 2. One-time per organisation: register the app in Entra ID
+
+The same add-in works for several Microsoft 365 organisations. Do this once for each one, then add an entry to `TENANTS` in `src/lib/config.js` with its email domain, client ID and tenant ID, and push.
+
+| Organisation | Domain | Status |
+|---|---|---|
+| GSK Electronics | gsk.com.sg | Registered, admin consent granted, assignment restricted to alex@ |
+| SILQ Law | – | To do |
+| FOSR Law | – | To do |
+
+If you are the tenant admin, click **Grant admin consent for <org>** on the API permissions page after step 3, and you're done.
+
+### Steps
 
 Most tenants let ordinary users register an app and consent for their own mailbox. If yours does, you don't need IT.
 

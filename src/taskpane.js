@@ -7,6 +7,8 @@ import {
   ensureMasterCategory,
   currentItemCategories,
   openItem,
+  getPending,
+  savePending,
 } from "./lib/office.js";
 import { checkAll, trackSentEmail, findSentCopy, stopTracking, restIdFor, setKnownMailboxes } from "./lib/tracker.js";
 import { parseHolidays } from "./lib/logic.js";
@@ -146,9 +148,10 @@ async function onCheck() {
   try {
     await ensureMasterCategory(CATEGORY);
     settings = getSettings();
-    const { results, discovered, scanFrom } = await checkAll(settings, settings.holidays, setStatus);
+    const { results, discovered, scanFrom, pending } = await checkAll(settings, settings.holidays, setStatus, getPending());
     settings.scanFrom = scanFrom;
     await saveSettings(settings);
+    await savePending(pending);
     const drafts = results.filter((r) => r.kind === "draftCreated").length;
     setStatus(
       `Done. ${results.length} tracked · ${drafts} new follow-up draft${drafts === 1 ? "" : "s"}` +

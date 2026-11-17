@@ -45,6 +45,25 @@ These are the decisions agreed with Alex on 17 Nov 2026, and the platform facts 
 - Addresses of your own and of your shared mailboxes are never counted as a response.
 - A category added by Graph in a shared mailbox has no colour unless "Follow-up" already exists in that mailbox's category list.
 
+## Compose in a shared mailbox (v1.2)
+
+Outlook for Mac refuses to save custom properties on a draft in a shared mailbox. It fails with `Internal protocol error: '-2147467259'`.
+
+In a shared mailbox, the compose pane therefore saves a **pending mark** in roaming settings instead: `{k, mbx, days, at, subject, to[], conv}`. If roaming settings also fail, it falls back to localStorage on that Mac. While the pane is open, it re-reads the subject and To fields every 4 seconds.
+
+On **Check**, pending marks are matched to that mailbox's Sent Items, sent within 7 days after the mark, using these scores:
+- conversation match: 4
+- normalised subject match: 2
+- identical To set: 1
+
+At least a subject or conversation match is required when one was captured. Marks expire after 14 days.
+
+## Multiple organisations (v1.2)
+
+`TENANTS` in `config.js` maps email domains to `{clientId, tenantId}`. `auth.js` picks the entry by the Outlook account's domain. There is one hosted build and one manifest for all organisations. Install it separately in each account.
+
+GSK: tenant-wide admin consent was granted by Ken (Algol, IT provider) on 17 Nov 2026. User assignment is required, and only alex@gsk.com.sg is assigned. Other GSK users would need to be assigned in Enterprise applications → Outlook Follow-Up Tracker → Users and groups.
+
 ## Architecture
 
 ```

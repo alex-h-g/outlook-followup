@@ -10,7 +10,7 @@
 // A "mailbox" here is either "me" or the SMTP address of a shared mailbox.
 import { graph, graphAll, q } from "./graph.js";
 import { CATEGORY, CECP_PROP_ID, STATE_PROP_ID } from "./config.js";
-import { toYMD, newState, parseState, decide, findResponse, isBounce, renderTemplate } from "./logic.js";
+import { toYMD, newState, parseState, decide, findResponse, isBounce, renderTemplate, matchPending, prunePending } from "./logic.js";
 
 const MSG_FIELDS =
   "id,subject,sentDateTime,conversationId,toRecipients,ccRecipients,from,sender,isDraft,webLink,categories";
@@ -93,7 +93,11 @@ export async function trackSentEmail(mbx, internetMessageId, days, holidays) {
 }
 
 // ---------------------------------------------------------------- discovery of compose-marked emails
-async function discoverComposeMarked(mbx, since, holidays) {
+async function discoverComposeMarked(mbx, since, holidays, pending = []) {
+  if (pending.length) {
+    const earliest = new Date(Math.min(...pending.map((p) => new Date(p.at).getTime())) - 5 * 60e3).toISOString();
+    if (earliest < since) since = earliest;
+  }
   const path =
     `${root(mbx)}/mailFolders/sentitems/messages?$filter=sentDateTime ge ${since}` +
     `&$select=${MSG_FIELDS}&${expandProp(CECP_PROP_ID)}&$top=100`;
@@ -118,7 +122,19 @@ async function discoverComposeMarked(mbx, since, holidays) {
     });
     found++;
   }
-  return found;
+
+  // Pending marks from shared-mailbox compose (no marker on the email itself).
+  const matchedKeys = [];
+  if (pending.length) {
+    const taken = new Set(sent.filter((m) => (m.categories || []).includes(CATEGORY) || propValue(m, CECP_PROP_ID)).map((m) => m.id));
+    for (const [k, m] of matchPending(pending, sent, taken)) {
+      const p = pending.find((x) => x.k === k);
+      await startTracking(mbx, m, p.days, holidays);
+      matchedKeys.push(k);
+      found++;
+    }
+  }
+  return { found, matchedKeys };
 }
 
 // ---------------------------------------------------------------- follow-up draft
@@ -155,7 +171,7 @@ async function createFollowUpDraft(mbx, original, number, template, own) {
 }
 
 // ---------------------------------------------------------------- the check
-async function checkMailbox(mbx, settings, holidays, me, onProgress) {
+async function checkMailbox(mbx, settings, holidays, me, onProgress, pending) {
   const today = toYMD(new Date());
   const own = ownAddresses(me, mbx);
   const label = mbx === "me" ? "your mailbox" : mbx;
@@ -164,7 +180,7 @@ async function checkMailbox(mbx, settings, holidays, me, onProgress) {
   const since =
     (settings.scanFrom && settings.scanFrom[mbx]) ||
     new Date(Date.now() - settings.scanDays * 864e5).toISOString();
-  const discovered = await discoverComposeMarked(mbx, since, holidays);
+  const { found: discovered, matchedKeys } = await discoverComposeMarked(mbx, since, holidays, pending);
 
   onProgress(`${label}: loading tracked emails…`);
   const tracked = await graphAll(
@@ -238,7 +254,7 @@ async function checkMailbox(mbx, settings, holidays, me, onProgress) {
       results.push({ ...base, kind: "error", note: e.message });
     }
   }
-  return { results, discovered };
+  return { results, discovered, matchedKeys };
 }
 
 /**
@@ -248,24 +264,27 @@ async function checkMailbox(mbx, settings, holidays, me, onProgress) {
  *  - due, no response       → Follow Up #N draft created in that mailbox, same conversation
  *  - draft already waiting  → reminds you to send it
  */
-export async function checkAll(settings, holidays, onProgress = () => {}) {
+export async function checkAll(settings, holidays, onProgress = () => {}, pendingIn = []) {
   setKnownMailboxes(settings.mailboxes);
   const me = await getMe();
   const all = [];
   let discovered = 0;
+  let pending = prunePending(pendingIn);
   const scanFrom = { ...(typeof settings.scanFrom === "object" ? settings.scanFrom : {}) };
   for (const mbx of settings.mailboxes) {
     try {
-      const r = await checkMailbox(mbx, settings, holidays, me, onProgress);
+      const mine = pending.filter((p) => p.mbx === mbx || p.mbx === "*");
+      const r = await checkMailbox(mbx, settings, holidays, me, onProgress, mine);
       all.push(...r.results);
       discovered += r.discovered;
+      pending = pending.filter((p) => !r.matchedKeys.includes(p.k));
       // Overlap by 2 days so late-arriving Sent Items aren't missed. Roams to the other Mac.
       scanFrom[mbx] = new Date(Date.now() - 2 * 864e5).toISOString();
     } catch (e) {
       all.push({ mbx, subject: mbx === "me" ? "Your mailbox" : mbx, kind: "error", note: e.message });
     }
   }
-  return { results: all, discovered, scanFrom };
+  return { results: all, discovered, scanFrom, pending };
 }
 
 /** Plain REST id + webLink for opening an item with Office.js. */

@@ -3,19 +3,30 @@
 // after the first consent. Tokens stay in memory / MSAL's cache – this add-in
 // never logs, stores or transmits them anywhere except to graph.microsoft.com.
 import { createNestablePublicClientApplication } from "@azure/msal-browser";
-import { CLIENT_ID, TENANT_ID, SCOPES } from "./config.js";
+import { TENANTS, SCOPES } from "./config.js";
 
 let pcaPromise = null;
 
+/** Tenant entry for the Outlook account this add-in is running in. */
+export function currentTenant() {
+  const email = (Office.context.mailbox.userProfile.emailAddress || "").toLowerCase();
+  const domain = email.split("@")[1] || "";
+  const t = TENANTS.find((x) => x.domains.some((d) => domain === d || domain.endsWith("." + d)));
+  if (!t) {
+    throw new Error(
+      `This add-in isn't set up for ${domain || "this account"} yet. Add it to TENANTS in src/lib/config.js (README §2).`
+    );
+  }
+  return t;
+}
+
 function pca() {
   if (!pcaPromise) {
-    if (CLIENT_ID.startsWith("00000000")) {
-      throw new Error("CLIENT_ID / TENANT_ID not set in src/lib/config.js – see README §2.");
-    }
+    const t = currentTenant();
     pcaPromise = createNestablePublicClientApplication({
       auth: {
-        clientId: CLIENT_ID,
-        authority: `https://login.microsoftonline.com/${TENANT_ID}`,
+        clientId: t.clientId,
+        authority: `https://login.microsoftonline.com/${t.tenantId}`,
       },
       cache: { cacheLocation: "sessionStorage" },
     });

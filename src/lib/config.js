@@ -1,9 +1,19 @@
 // ---------------------------------------------------------------------------
-// EDIT THESE TWO VALUES after registering the app in Entra ID (see README §2).
+// One entry per Microsoft 365 organisation (tenant) the add-in is used in.
+// The add-in picks the entry whose domain matches the signed-in Outlook account.
+// Each organisation needs its own app registration (README §2).
 // Neither value is a secret – they identify the app, they do not grant access.
 // ---------------------------------------------------------------------------
-export const CLIENT_ID = "3ac91786-9334-41aa-a056-a741343b95a4"; // Application (client) ID
-export const TENANT_ID = "26e19ffc-5943-419e-b59f-d00d4fda6259"; // Directory (tenant) ID
+export const TENANTS = [
+  {
+    name: "GSK Electronics",
+    domains: ["gsk.com.sg"],
+    clientId: "3ac91786-9334-41aa-a056-a741343b95a4",
+    tenantId: "26e19ffc-5943-419e-b59f-d00d4fda6259",
+  },
+  // { name: "SILQ Law", domains: ["silqlaw.com"], clientId: "…", tenantId: "…" },
+  // { name: "FOSR Law", domains: ["fosrlaw.com"], clientId: "…", tenantId: "…" },
+];
 
 // ---------------------------------------------------------------------------
 // Do not change below unless you know why. Changing ADDIN_ID orphans emails
@@ -35,4 +45,5 @@ export const DEFAULT_SETTINGS = {
   scanDays: 30, // how far back the first scan of Sent Items looks
   mailboxes: ["me"], // "me" + shared mailbox addresses; added automatically when you use the add-in there
   scanFrom: {}, // per mailbox
+  pending: [], // follow-ups chosen in a shared mailbox, waiting to be matched in Sent Items
 };

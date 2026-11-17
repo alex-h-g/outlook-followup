@@ -129,3 +129,63 @@ export function parseHolidays(text) {
     .map((t) => t.trim())
     .filter((t) => /^\d{4}-\d{2}-\d{2}$/.test(t));
 }
+
+// ---------------------------------------------------------------- pending compose marks
+// Used where Outlook won't let the add-in tag a draft (shared mailboxes on Mac).
+// A pending mark records what was known when "follow up" was chosen; the next
+// check matches it to the sent copy in that mailbox's Sent Items.
+
+export function normSubject(s) {
+  return String(s || "")
+    .replace(/^\s*((re|fw|fwd|aw|wg|tr)\s*:\s*)+/i, "")
+    .trim()
+    .toLowerCase();
+}
+
+const addrSet = (list) =>
+  [...new Set((list || []).map((a) => String(a?.emailAddress?.address ?? a ?? "").toLowerCase()).filter(Boolean))]
+    .sort()
+    .join(";");
+
+/**
+ * @param pending  [{k, at, subject, to:[addr], conv}]
+ * @param sent     Graph messages (id, sentDateTime, subject, toRecipients, conversationId)
+ * @param taken    Set of message ids already tracked / claimed
+ * @returns Map k → message
+ */
+export function matchPending(pending, sent, taken = new Set()) {
+  const out = new Map();
+  const claimed = new Set(taken);
+  const ordered = [...pending].sort((a, b) => new Date(a.at) - new Date(b.at));
+  for (const p of ordered) {
+    const from = new Date(p.at).getTime() - 2 * 60e3; // clock skew
+    const until = new Date(p.at).getTime() + 7 * 864e5;
+    let best = null;
+    let bestScore = 0;
+    for (const m of sent) {
+      if (claimed.has(m.id)) continue;
+      const t = new Date(m.sentDateTime).getTime();
+      if (t < from || t > until) continue;
+      let score = 0;
+      if (p.conv && m.conversationId === p.conv) score += 4;
+      if (p.subject && normSubject(m.subject) === normSubject(p.subject)) score += 2;
+      if (p.to?.length && addrSet(p.to) === addrSet(m.toRecipients)) score += 1;
+      // Need more than a recipients-only match unless that's all we had.
+      const minScore = p.subject || p.conv ? 2 : 1;
+      if (score < minScore) continue;
+      if (score > bestScore || (score === bestScore && t < new Date(best.sentDateTime).getTime())) {
+        best = m;
+        bestScore = score;
+      }
+    }
+    if (best) {
+      out.set(p.k, best);
+      claimed.add(best.id);
+    }
+  }
+  return out;
+}
+
+export function prunePending(pending, now = Date.now()) {
+  return (pending || []).filter((p) => now - new Date(p.at).getTime() < 14 * 864e5);
+}

@@ -116,3 +116,45 @@ export function openItem(restId, webLink) {
     if (webLink) window.open(webLink, "_blank");
   }
 }
+
+// ---- pending compose marks (shared mailboxes, where custom properties can't be saved) ----
+const LS_KEY = "fu-pending";
+
+function localPending() {
+  try {
+    return JSON.parse(localStorage.getItem(LS_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+/** All pending marks: roaming (both Macs) + any that only made it to this Mac. */
+export function getPending() {
+  const roam = getSettings().pending || [];
+  const local = localPending();
+  const seen = new Set(roam.map((p) => p.k));
+  return [...roam, ...local.filter((p) => !seen.has(p.k))];
+}
+
+export async function savePending(list) {
+  const s = getSettings();
+  s.pending = list;
+  try {
+    await saveSettings(s);
+    try {
+      localStorage.removeItem(LS_KEY);
+    } catch {}
+  } catch {
+    // Roaming settings unavailable in this context → keep on this Mac until the next check.
+    localStorage.setItem(LS_KEY, JSON.stringify(list));
+  }
+}
+
+/** What we can see of the draft right now. */
+export async function composeSnapshot() {
+  const item = Office.context.mailbox.item;
+  const get = (fn) => wrap(fn).catch(() => null);
+  const subject = (await get((cb) => item.subject.getAsync(cb))) || "";
+  const to = ((await get((cb) => item.to.getAsync(cb))) || []).map((r) => (r.emailAddress || "").toLowerCase());
+  return { subject, to, conv: item.conversationId || null };
+}
